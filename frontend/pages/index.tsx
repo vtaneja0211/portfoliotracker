@@ -28,6 +28,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import { portfolioApi, StockTransaction } from '../services/api';
 import { useRouter } from 'next/router';
 
@@ -35,10 +36,13 @@ interface StockData {
   total_shares: number;
   total_cost: number;
   average_price: number;
+  holding_type: 'stock' | 'cash';
+  start_of_year_total?: number;
   lots: Array<{
     shares: number;
     purchase_price: number;
     purchase_date: string;
+    start_of_year_price?: number;
   }>;
 }
 
@@ -76,6 +80,12 @@ export default function PortfolioPage() {
   const [transactionShares, setTransactionShares] = useState(0);
   const [transactionPrice, setTransactionPrice] = useState(0);
   const [snackbarMessage, setSnackbarMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [transaction, setTransaction] = useState<StockTransaction>({
+    symbol: '',
+    shares: 0,
+    price: 0,
+    holding_type: 'stock'
+  });
   const router = useRouter();
 
   const fetchData = async () => {
@@ -127,6 +137,10 @@ export default function PortfolioPage() {
     setTransactionType(type);
     setTransactionShares(0);
     setTransactionPrice(0);
+    setTransaction(prev => ({ 
+      ...prev, 
+      holding_type: portfolio[symbol].holding_type as 'stock' | 'cash' 
+    }));
     setOpenTransactionDialog(true);
   };
 
@@ -191,6 +205,7 @@ export default function PortfolioPage() {
                   <TableCell align="right">Current Total</TableCell>
                   <TableCell align="right">Absolute Change ($)</TableCell>
                   <TableCell align="right">% Change</TableCell>
+                  <TableCell align="right">Start of Year Total</TableCell>
                   <TableCell align="right">YTD Abs Change ($)</TableCell>
                   <TableCell align="right">YTD % Change</TableCell>
                   {periodHeaders.map((period) => (
@@ -207,8 +222,9 @@ export default function PortfolioPage() {
                   const currentTotal = currPrice * data.total_shares;
                   const absChange = currentTotal - totalCost;
                   const pctChange = totalCost !== 0 ? ((currentTotal - totalCost) / totalCost) * 100 : 0;
-
-                  const ytdPerf = performance[symbol]?.['Year to date'];
+                  const startOfYearTotal = data.start_of_year_total || 0;
+                  const ytdAbsChange = currentTotal - startOfYearTotal;
+                  const ytdPctChange = startOfYearTotal !== 0 ? ((currentTotal - startOfYearTotal) / startOfYearTotal) * 100 : 0;
 
                   return (
                     <>
@@ -224,7 +240,7 @@ export default function PortfolioPage() {
                         </TableCell>
                         <TableCell component="th" scope="row">
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <ShowChartIcon fontSize="small" color="primary" />
+                            {data.holding_type === 'stock' ? <ShowChartIcon fontSize="small" color="primary" /> : <AttachMoneyIcon fontSize="small" color="primary" />}
                             {symbol}
                           </Box>
                         </TableCell>
@@ -239,11 +255,12 @@ export default function PortfolioPage() {
                         <TableCell align="right" sx={{ color: pctChange >= 0 ? 'success.main' : 'error.main' }}>
                           {pctChange.toFixed(2)}%
                         </TableCell>
-                        <TableCell align="right" sx={{ color: (ytdPerf?.absolute_performance || 0) >= 0 ? 'success.main' : 'error.main' }}>
-                          {ytdPerf?.absolute_performance !== undefined ? ytdPerf.absolute_performance.toFixed(2) : '-'}
+                        <TableCell align="right">${startOfYearTotal.toFixed(2)}</TableCell>
+                        <TableCell align="right" sx={{ color: ytdAbsChange >= 0 ? 'success.main' : 'error.main' }}>
+                          {ytdAbsChange.toFixed(2)}
                         </TableCell>
-                        <TableCell align="right" sx={{ color: (ytdPerf?.performance || 0) >= 0 ? 'success.main' : 'error.main' }}>
-                          {ytdPerf?.performance !== undefined ? ytdPerf.performance.toFixed(2) + '%' : '-'}
+                        <TableCell align="right" sx={{ color: ytdPctChange >= 0 ? 'success.main' : 'error.main' }}>
+                          {ytdPctChange.toFixed(2)}%
                         </TableCell>
                         {periodHeaders.map((period) => {
                           const perf = performance[symbol]?.[period.key];
@@ -254,20 +271,28 @@ export default function PortfolioPage() {
                           );
                         })}
                         <TableCell align="center">
-                          <IconButton color="primary" size="small" onClick={() => handleOpenTransactionDialog(symbol, 'add')}>
+                          <IconButton
+                            color="primary"
+                            onClick={() => handleOpenTransactionDialog(symbol, 'add')}
+                            size="small"
+                          >
                             <AddCircleOutlineIcon />
                           </IconButton>
-                          <IconButton color="secondary" size="small" onClick={() => handleOpenTransactionDialog(symbol, 'remove')}>
+                          <IconButton
+                            color="secondary"
+                            onClick={() => handleOpenTransactionDialog(symbol, 'remove')}
+                            size="small"
+                          >
                             <RemoveCircleOutlineIcon />
                           </IconButton>
                         </TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={15}>
+                        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={14}>
                           <Collapse in={openRows[symbol]} timeout="auto" unmountOnExit>
                             <Box sx={{ margin: 1 }}>
                               <Typography variant="h6" gutterBottom component="div">
-                                Lots
+                                Transaction History
                               </Typography>
                               <Table size="small" aria-label="lots">
                                 <TableHead>
@@ -279,6 +304,7 @@ export default function PortfolioPage() {
                                     <TableCell align="right">Current Lot Value</TableCell>
                                     <TableCell align="right">Abs Lot Change ($)</TableCell>
                                     <TableCell align="right">% Lot Change</TableCell>
+                                    <TableCell align="right">Start of Year Price</TableCell>
                                     <TableCell align="right">YTD Abs Lot Change ($)</TableCell>
                                     <TableCell align="right">YTD % Lot Change</TableCell>
                                   </TableRow>
@@ -289,10 +315,9 @@ export default function PortfolioPage() {
                                     const lotCurrentValue = currPrice * lot.shares;
                                     const lotAbsChange = lotCurrentValue - lotTotalCost;
                                     const lotPctChange = lotTotalCost !== 0 ? ((lotCurrentValue - lotTotalCost) / lotTotalCost) * 100 : 0;
-
-                                    const ytdAbsChangeStock = ytdPerf?.absolute_performance || 0;
-                                    const ytdLotAbsChange = (ytdAbsChangeStock / data.total_shares) * lot.shares;
-                                    const ytdLotPctChange = ytdPerf?.performance || 0;
+                                    const lotStartOfYearValue = lot.start_of_year_price ? lot.shares * lot.start_of_year_price : 0;
+                                    const lotYtdAbsChange = lotCurrentValue - lotStartOfYearValue;
+                                    const lotYtdPctChange = lotStartOfYearValue !== 0 ? ((lotCurrentValue - lotStartOfYearValue) / lotStartOfYearValue) * 100 : 0;
 
                                     return (
                                       <TableRow key={lotIndex}>
@@ -307,11 +332,12 @@ export default function PortfolioPage() {
                                         <TableCell align="right" sx={{ color: lotPctChange >= 0 ? 'success.main' : 'error.main' }}>
                                           {lotPctChange.toFixed(2)}%
                                         </TableCell>
-                                        <TableCell align="right" sx={{ color: ytdLotAbsChange >= 0 ? 'success.main' : 'error.main' }}>
-                                          {ytdLotAbsChange.toFixed(2)}
+                                        <TableCell align="right">${lot.start_of_year_price?.toFixed(2) || '-'}</TableCell>
+                                        <TableCell align="right" sx={{ color: lotYtdAbsChange >= 0 ? 'success.main' : 'error.main' }}>
+                                          {lotYtdAbsChange.toFixed(2)}
                                         </TableCell>
-                                        <TableCell align="right" sx={{ color: ytdLotPctChange >= 0 ? 'success.main' : 'error.main' }}>
-                                          {ytdLotPctChange.toFixed(2)}%
+                                        <TableCell align="right" sx={{ color: lotYtdPctChange >= 0 ? 'success.main' : 'error.main' }}>
+                                          {lotYtdPctChange.toFixed(2)}%
                                         </TableCell>
                                       </TableRow>
                                     );

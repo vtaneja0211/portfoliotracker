@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/varuntaneja/Documents/Coding_Projects/Portfolio Manager/venv/bin/python" "$0" "$@"
-' '''
+#!/Users/varuntaneja/Documents/Coding_Projects/portfoliotracker/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

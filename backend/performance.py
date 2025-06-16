@@ -20,6 +20,26 @@ PERIOD_DAYS = {
 class PerformanceAnalyzer:
     def __init__(self, portfolio_manager: PortfolioManager):
         self.portfolio_manager = portfolio_manager
+        self._daily_series_cache = {}
+        self._last_cache_update = None
+        self._cache_duration = timedelta(hours=1)  # Cache for 1 hour
+
+    def _should_update_cache(self):
+        if not self._last_cache_update:
+            return True
+        return datetime.now() - self._last_cache_update > self._cache_duration
+
+    def _update_cache(self, symbols: List[str]):
+        if not self._should_update_cache():
+            return
+
+        for symbol in symbols:
+            if symbol not in self._daily_series_cache or self._should_update_cache():
+                series = self.fetch_daily_series(symbol)
+                if series:
+                    self._daily_series_cache[symbol] = series
+        
+        self._last_cache_update = datetime.now()
 
     def fetch_daily_series(self, symbol: str):
         url = f'https://www.alphavantage.co/query'
@@ -33,35 +53,31 @@ class PerformanceAnalyzer:
         data = r.json()
         return data.get('Time Series (Daily)', {})
 
-    def fetch_current_price(self, symbol: str):
-        url = f'https://www.alphavantage.co/query'
-        params = {
-            'function': 'GLOBAL_QUOTE',
-            'symbol': symbol,
-            'apikey': ALPHAVANTAGE_KEY
-        }
-        print(f"DEBUG: Alpha Vantage current price URL: {url}")
-        print(f"DEBUG: Alpha Vantage current price Params: {params}")
-        r = requests.get(url, params=params)
-        data = r.json()
-        print(f"DEBUG: Alpha Vantage current price raw response for {symbol}: {data}")
-
-        if "Note" in data:
-            print(f"DEBUG: Alpha Vantage Note for {symbol}: {data['Note']}")
-
-        try:
-            price = float(data['Global Quote']['05. price'])
-            print(f"DEBUG: Parsed current price for {symbol}: {price}")
-            return price
-        except Exception as e:
-            print(f"DEBUG: Error parsing current price for {symbol}: {e}")
+    def get_current_price(self, symbol: str) -> float:
+        """Get current price from cached daily series data"""
+        if symbol not in self._daily_series_cache:
+            self._update_cache([symbol])
+        
+        series = self._daily_series_cache.get(symbol, {})
+        if not series:
             return 0.0
+        
+        # Get the most recent date's closing price
+        dates = sorted(series.keys(), reverse=True)
+        if not dates:
+            return 0.0
+            
+        return float(series[dates[0]]['4. close'])
 
     def get_stock_performance(self, symbol: str, period: str) -> dict:
         try:
-            series = self.fetch_daily_series(symbol)
+            if symbol not in self._daily_series_cache:
+                self._update_cache([symbol])
+                
+            series = self._daily_series_cache.get(symbol, {})
             if not series:
                 return {"status": "error", "message": f"No data for {symbol}"}
+                
             dates = sorted(series.keys(), reverse=True)
             end_date = dates[0]
             end_price = float(series[end_date]['4. close'])
@@ -98,6 +114,10 @@ class PerformanceAnalyzer:
         if portfolio["status"] != "success":
             return portfolio
 
+        # Update cache for all symbols at once
+        symbols = list(portfolio["portfolio"].keys())
+        self._update_cache(symbols)
+
         periods = {
             "1d": "1 day",
             "5d": "5 days",
@@ -109,7 +129,7 @@ class PerformanceAnalyzer:
         }
 
         performance_data = {}
-        for symbol in portfolio["portfolio"]:
+        for symbol in symbols:
             performance_data[symbol] = {}
             for period, period_name in periods.items():
                 result = self.get_stock_performance(symbol, period)
@@ -126,13 +146,19 @@ class PerformanceAnalyzer:
         if portfolio["status"] != "success":
             return portfolio
 
+        # Update cache for all symbols at once
+        symbols = list(portfolio["portfolio"].keys())
+        self._update_cache(symbols)
+
         total_value = 0
+        start_of_year_total = 0
         stock_values = {}
         for symbol, data in portfolio["portfolio"].items():
-            current_price = self.fetch_current_price(symbol)
+            current_price = self.get_current_price(symbol)
             value = current_price * data["total_shares"]
             stock_values[symbol] = value
             total_value += value
+            start_of_year_total += data.get("start_of_year_total", 0)
 
         allocation = {}
         for symbol, value in stock_values.items():
@@ -143,6 +169,7 @@ class PerformanceAnalyzer:
         return {
             "status": "success",
             "total_value": total_value,
+            "start_of_year_total": start_of_year_total,
             "stock_allocation": allocation,
             "sector_allocation": sector_allocation,
             "stock_values": stock_values

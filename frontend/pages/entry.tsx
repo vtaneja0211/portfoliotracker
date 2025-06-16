@@ -12,7 +12,11 @@ import {
   DialogActions,
   DialogContent,
   DialogContentText,
-  DialogTitle
+  DialogTitle,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { portfolioApi, StockTransaction } from '../services/api';
 import { useRouter } from 'next/router';
@@ -21,18 +25,21 @@ export default function EntryPage() {
   const [transaction, setTransaction] = useState<StockTransaction>({
     symbol: '',
     shares: 0,
-    price: 0
+    price: 0,
+    holding_type: 'stock'
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const router = useRouter();
 
   const handleInputChange = (field: keyof StockTransaction) => (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement | { value: unknown }>
   ) => {
     const value = field === 'symbol' 
-      ? event.target.value.toUpperCase()
-      : parseFloat(event.target.value);
+      ? (event.target as HTMLInputElement).value.toUpperCase()
+      : field === 'holding_type'
+      ? event.target.value
+      : parseFloat((event.target as HTMLInputElement).value);
     
     setTransaction(prev => ({
       ...prev,
@@ -44,7 +51,7 @@ export default function EntryPage() {
     try {
       const result = await portfolioApi.addStock(transaction);
       setMessage({ type: 'success', text: result.message });
-      setTransaction({ symbol: '', shares: 0, price: 0 });
+      setTransaction({ symbol: '', shares: 0, price: 0, holding_type: 'stock' });
       setOpenDialog(true);
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to add stock' });
@@ -55,7 +62,7 @@ export default function EntryPage() {
     try {
       const result = await portfolioApi.removeStock(transaction);
       setMessage({ type: 'success', text: result.message });
-      setTransaction({ symbol: '', shares: 0, price: 0 });
+      setTransaction({ symbol: '', shares: 0, price: 0, holding_type: 'stock' });
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to remove stock' });
     }
@@ -72,17 +79,31 @@ export default function EntryPage() {
     <Container maxWidth="sm" sx={{ mt: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Stock Entry
+          Portfolio Entry
         </Typography>
         
         <Grid container spacing={3}>
           <Grid item xs={12}>
+            <FormControl fullWidth>
+              <InputLabel>Holding Type</InputLabel>
+              <Select
+                value={transaction.holding_type}
+                label="Holding Type"
+                onChange={handleInputChange('holding_type')}
+              >
+                <MenuItem value="stock">Stock</MenuItem>
+                <MenuItem value="cash">Cash</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12}>
             <TextField
               fullWidth
-              label="Stock Symbol"
+              label={transaction.holding_type === 'cash' ? "Cash Description" : "Stock Symbol"}
               value={transaction.symbol}
               onChange={handleInputChange('symbol')}
-              placeholder="e.g., AAPL"
+              placeholder={transaction.holding_type === 'cash' ? "e.g., Savings Account" : "e.g., AAPL"}
             />
           </Grid>
           
@@ -90,7 +111,7 @@ export default function EntryPage() {
             <TextField
               fullWidth
               type="number"
-              label="Number of Shares"
+              label={transaction.holding_type === 'cash' ? "Amount" : "Number of Shares"}
               value={transaction.shares}
               onChange={handleInputChange('shares')}
               InputProps={{ inputProps: { min: 0 } }}
@@ -101,7 +122,7 @@ export default function EntryPage() {
             <TextField
               fullWidth
               type="number"
-              label="Price per Share"
+              label={transaction.holding_type === 'cash' ? "Value per Unit" : "Price per Share"}
               value={transaction.price}
               onChange={handleInputChange('price')}
               InputProps={{ inputProps: { min: 0, step: 0.01 } }}
@@ -116,7 +137,7 @@ export default function EntryPage() {
               onClick={handleAddStock}
               disabled={!transaction.symbol || transaction.shares <= 0 || transaction.price <= 0}
             >
-              Add Stock
+              Add {transaction.holding_type === 'cash' ? 'Cash' : 'Stock'}
             </Button>
           </Grid>
           
@@ -128,7 +149,7 @@ export default function EntryPage() {
               onClick={handleRemoveStock}
               disabled={!transaction.symbol || transaction.shares <= 0 || transaction.price <= 0}
             >
-              Remove Stock
+              Remove {transaction.holding_type === 'cash' ? 'Cash' : 'Stock'}
             </Button>
           </Grid>
         </Grid>
@@ -154,10 +175,10 @@ export default function EntryPage() {
         aria-labelledby="add-more-dialog-title"
         aria-describedby="add-more-dialog-description"
       >
-        <DialogTitle id="add-more-dialog-title">{"Stock Added Successfully!"}</DialogTitle>
+        <DialogTitle id="add-more-dialog-title">{"Entry Added Successfully!"}</DialogTitle>
         <DialogContent>
           <DialogContentText id="add-more-dialog-description">
-            Do you want to add more stocks?
+            Do you want to add more entries?
           </DialogContentText>
         </DialogContent>
         <DialogActions>

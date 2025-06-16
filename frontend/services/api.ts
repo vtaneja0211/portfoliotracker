@@ -13,6 +13,7 @@ export interface StockTransaction {
   symbol: string;
   shares: number;
   price: number;
+  holding_type: 'stock' | 'cash';
 }
 
 export const portfolioApi = {

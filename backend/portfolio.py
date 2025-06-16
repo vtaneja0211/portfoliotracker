@@ -15,6 +15,8 @@ class StockLot(Base):
     shares = Column(Float)
     purchase_price = Column(Float)
     purchase_date = Column(DateTime, default=datetime.utcnow)
+    holding_type = Column(String, default="stock")  # Can be "stock" or "cash"
+    start_of_year_price = Column(Float, nullable=True)  # For tracking YTD performance
 
 class PortfolioManager:
     def __init__(self, db_url: str = "sqlite:///./portfolio.db"):
@@ -22,14 +24,15 @@ class PortfolioManager:
         Base.metadata.create_all(bind=self.engine)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
-    def add_stock(self, symbol: str, shares: float, purchase_price: float) -> dict:
+    def add_stock(self, symbol: str, shares: float, purchase_price: float, holding_type: str = "stock") -> dict:
         """Add a new stock lot to the portfolio."""
         db = self.SessionLocal()
         try:
             stock_lot = StockLot(
                 symbol=symbol.upper(),
                 shares=shares,
-                purchase_price=purchase_price
+                purchase_price=purchase_price,
+                holding_type=holding_type
             )
             db.add(stock_lot)
             db.commit()
@@ -92,7 +95,8 @@ class PortfolioManager:
                     portfolio[lot.symbol] = {
                         "total_shares": 0,
                         "total_cost": 0,
-                        "lots": []
+                        "lots": [],
+                        "holding_type": lot.holding_type
                     }
                 
                 portfolio[lot.symbol]["total_shares"] += lot.shares
@@ -100,14 +104,21 @@ class PortfolioManager:
                 portfolio[lot.symbol]["lots"].append({
                     "shares": lot.shares,
                     "purchase_price": lot.purchase_price,
-                    "purchase_date": lot.purchase_date.isoformat()
+                    "purchase_date": lot.purchase_date.isoformat(),
+                    "start_of_year_price": lot.start_of_year_price
                 })
 
-            # Calculate average prices
+            # Calculate average prices and start of year values
             for symbol in portfolio:
                 portfolio[symbol]["average_price"] = (
                     portfolio[symbol]["total_cost"] / portfolio[symbol]["total_shares"]
                 )
+                # Calculate start of year total if available
+                start_of_year_total = 0
+                for lot in portfolio[symbol]["lots"]:
+                    if lot["start_of_year_price"] is not None:
+                        start_of_year_total += lot["shares"] * lot["start_of_year_price"]
+                portfolio[symbol]["start_of_year_total"] = start_of_year_total
 
             return {
                 "status": "success",

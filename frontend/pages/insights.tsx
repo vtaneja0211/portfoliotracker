@@ -37,6 +37,7 @@ interface PortfolioInsights {
   total_value: number;
   stock_allocation: { [key: string]: number };
   stock_values: { [key: string]: number };
+  start_of_year_total: number;
 }
 
 export default function InsightsPage() {
@@ -110,6 +111,14 @@ export default function InsightsPage() {
             </Typography>
             <Typography variant="h6" color="primary" sx={{ mb: 2 }}>
               Total Portfolio Value: ${insights.total_value.toLocaleString()}
+            </Typography>
+            <Typography variant="h6" color="primary" sx={{ mb: 2 }}>
+              Total Portfolio Growth: {
+                ((insights.total_value - insights.start_of_year_total) / insights.start_of_year_total * 100).toFixed(2)
+              }%
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Start of Year Value: ${insights.start_of_year_total.toLocaleString()}
             </Typography>
           </Paper>
         </Grid>
