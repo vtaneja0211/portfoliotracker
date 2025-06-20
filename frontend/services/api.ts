@@ -14,6 +14,7 @@ export interface StockTransaction {
   shares: number;
   price: number;
   holding_type: 'stock' | 'cash';
+  purchase_date?: string;
 }
 
 export const portfolioApi = {

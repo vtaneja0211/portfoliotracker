@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { portfolioApi, StockTransaction } from '../services/api';
 import { useRouter } from 'next/router';
+import { SelectChangeEvent } from '@mui/material/Select';
 
 export default function EntryPage() {
   const [transaction, setTransaction] = useState<StockTransaction>({
@@ -31,6 +32,7 @@ export default function EntryPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const router = useRouter();
+  const [purchaseDate, setPurchaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   const handleInputChange = (field: keyof StockTransaction) => (
     event: React.ChangeEvent<HTMLInputElement | { value: unknown }>
@@ -47,11 +49,20 @@ export default function EntryPage() {
     }));
   };
 
+  const handleSelectChange = (event: SelectChangeEvent) => {
+    setTransaction(prev => ({
+      ...prev,
+      holding_type: event.target.value as 'stock' | 'cash',
+    }));
+  };
+
   const handleAddStock = async () => {
     try {
-      const result = await portfolioApi.addStock(transaction);
+      const transactionWithDate = { ...transaction, purchase_date: purchaseDate };
+      const result = await portfolioApi.addStock(transactionWithDate);
       setMessage({ type: 'success', text: result.message });
       setTransaction({ symbol: '', shares: 0, price: 0, holding_type: 'stock' });
+      setPurchaseDate(new Date().toISOString().slice(0, 10));
       setOpenDialog(true);
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to add stock' });
@@ -71,7 +82,7 @@ export default function EntryPage() {
   const handleCloseDialog = (addMore: boolean) => {
     setOpenDialog(false);
     if (!addMore) {
-      router.push('/portfolio');
+      router.push('/');
     }
   };
 
@@ -89,7 +100,7 @@ export default function EntryPage() {
               <Select
                 value={transaction.holding_type}
                 label="Holding Type"
-                onChange={handleInputChange('holding_type')}
+                onChange={handleSelectChange}
               >
                 <MenuItem value="stock">Stock</MenuItem>
                 <MenuItem value="cash">Cash</MenuItem>
@@ -126,6 +137,17 @@ export default function EntryPage() {
               value={transaction.price}
               onChange={handleInputChange('price')}
               InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+            />
+          </Grid>
+          
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Purchase Date"
+              type="date"
+              value={purchaseDate}
+              onChange={e => setPurchaseDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
             />
           </Grid>
           

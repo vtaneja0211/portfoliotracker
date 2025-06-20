@@ -24,13 +24,15 @@ class StockTransaction(BaseModel):
     symbol: str
     shares: float
     price: float
+    purchase_date: Optional[str] = None
 
 @app.post("/api/portfolio/add")
 async def add_stock(transaction: StockTransaction):
     result = portfolio_manager.add_stock(
         transaction.symbol,
         transaction.shares,
-        transaction.price
+        transaction.price,
+        purchase_date=transaction.purchase_date
     )
     if result["status"] == "error":
         raise HTTPException(status_code=400, detail=result["message"])
@@ -49,7 +51,7 @@ async def remove_stock(transaction: StockTransaction):
 
 @app.get("/api/portfolio/summary")
 async def get_portfolio_summary():
-    return portfolio_manager.get_portfolio_summary()
+    return portfolio_manager.get_portfolio_summary(performance_analyzer=performance_analyzer)
 
 @app.get("/api/performance/metrics")
 async def get_performance_metrics():

@@ -79,6 +79,7 @@ export default function PortfolioPage() {
   const [currentSymbol, setCurrentSymbol] = useState('');
   const [transactionShares, setTransactionShares] = useState(0);
   const [transactionPrice, setTransactionPrice] = useState(0);
+  const [transactionPurchaseDate, setTransactionPurchaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [snackbarMessage, setSnackbarMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [transaction, setTransaction] = useState<StockTransaction>({
     symbol: '',
@@ -137,6 +138,7 @@ export default function PortfolioPage() {
     setTransactionType(type);
     setTransactionShares(0);
     setTransactionPrice(0);
+    setTransactionPurchaseDate(new Date().toISOString().slice(0, 10));
     setTransaction(prev => ({ 
       ...prev, 
       holding_type: portfolio[symbol].holding_type as 'stock' | 'cash' 
@@ -150,6 +152,7 @@ export default function PortfolioPage() {
     setCurrentSymbol('');
     setTransactionShares(0);
     setTransactionPrice(0);
+    setTransactionPurchaseDate(new Date().toISOString().slice(0, 10));
   };
 
   const handleTransactionSubmit = async () => {
@@ -157,6 +160,8 @@ export default function PortfolioPage() {
       symbol: currentSymbol,
       shares: transactionShares,
       price: transactionPrice,
+      holding_type: portfolio[currentSymbol]?.holding_type || 'stock',
+      purchase_date: transactionPurchaseDate,
     };
 
     try {
@@ -315,7 +320,8 @@ export default function PortfolioPage() {
                                     const lotCurrentValue = currPrice * lot.shares;
                                     const lotAbsChange = lotCurrentValue - lotTotalCost;
                                     const lotPctChange = lotTotalCost !== 0 ? ((lotCurrentValue - lotTotalCost) / lotTotalCost) * 100 : 0;
-                                    const lotStartOfYearValue = lot.start_of_year_price ? lot.shares * lot.start_of_year_price : 0;
+                                    const lotStartOfYearPrice = lot.start_of_year_price;
+                                    const lotStartOfYearValue = lotStartOfYearPrice ? lot.shares * lotStartOfYearPrice : 0;
                                     const lotYtdAbsChange = lotCurrentValue - lotStartOfYearValue;
                                     const lotYtdPctChange = lotStartOfYearValue !== 0 ? ((lotCurrentValue - lotStartOfYearValue) / lotStartOfYearValue) * 100 : 0;
 
@@ -332,10 +338,8 @@ export default function PortfolioPage() {
                                         <TableCell align="right" sx={{ color: lotPctChange >= 0 ? 'success.main' : 'error.main' }}>
                                           {lotPctChange.toFixed(2)}%
                                         </TableCell>
-                                        <TableCell align="right">${lot.start_of_year_price?.toFixed(2) || '-'}</TableCell>
-                                        <TableCell align="right" sx={{ color: lotYtdAbsChange >= 0 ? 'success.main' : 'error.main' }}>
-                                          {lotYtdAbsChange.toFixed(2)}
-                                        </TableCell>
+                                        <TableCell align="right">{lotStartOfYearPrice !== undefined ? `$${lotStartOfYearPrice.toFixed(2)}` : '-'}</TableCell>
+                                        <TableCell align="right">${lotYtdAbsChange.toFixed(2)}</TableCell>
                                         <TableCell align="right" sx={{ color: lotYtdPctChange >= 0 ? 'success.main' : 'error.main' }}>
                                           {lotYtdPctChange.toFixed(2)}%
                                         </TableCell>
@@ -381,6 +385,17 @@ export default function PortfolioPage() {
             value={transactionPrice}
             onChange={(e) => setTransactionPrice(parseFloat(e.target.value))}
             inputProps={{ min: 0, step: 0.01 }}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Purchase Date"
+            type="date"
+            fullWidth
+            variant="standard"
+            value={transactionPurchaseDate}
+            onChange={(e) => setTransactionPurchaseDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
           />
         </DialogContent>
         <DialogActions>

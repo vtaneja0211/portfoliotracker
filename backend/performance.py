@@ -158,7 +158,17 @@ class PerformanceAnalyzer:
             value = current_price * data["total_shares"]
             stock_values[symbol] = value
             total_value += value
-            start_of_year_total += data.get("start_of_year_total", 0)
+
+            # Calculate start-of-year price using daily series
+            series = self._daily_series_cache.get(symbol, {})
+            if series:
+                dates = sorted(series.keys(), reverse=True)
+                jan1 = datetime(datetime.now().year, 1, 1)
+                closest_date = min(dates, key=lambda d: abs(datetime.strptime(d, '%Y-%m-%d') - jan1))
+                start_of_year_price = float(series[closest_date]['4. close'])
+                start_of_year_total += start_of_year_price * data["total_shares"]
+            else:
+                start_of_year_total += 0  # fallback if no data
 
         allocation = {}
         for symbol, value in stock_values.items():
@@ -173,4 +183,19 @@ class PerformanceAnalyzer:
             "stock_allocation": allocation,
             "sector_allocation": sector_allocation,
             "stock_values": stock_values
-        } 
+        }
+
+    def get_start_of_year_price(self, symbol: str, purchase_date: datetime, purchase_price: float) -> float:
+        """Return the start of year price for a lot: if bought after Jan 1, use purchase price, else use price closest to Jan 1."""
+        if symbol not in self._daily_series_cache:
+            self._update_cache([symbol])
+        series = self._daily_series_cache.get(symbol, {})
+        if not series:
+            return purchase_price
+        jan1 = datetime(datetime.now().year, 1, 1)
+        if purchase_date > jan1:
+            return purchase_price
+        # Find closest date to Jan 1
+        dates = sorted(series.keys(), reverse=True)
+        closest_date = min(dates, key=lambda d: abs(datetime.strptime(d, '%Y-%m-%d') - jan1))
+        return float(series[closest_date]['4. close']) 
